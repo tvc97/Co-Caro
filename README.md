@@ -19,6 +19,16 @@ Five-in-a-row against the computer on a 30x30 board, for Java ME phones.
 | Right soft key | Back to main menu |
 | * | Toggle the falling-pieces effect |
 
+## Difficulty levels
+
+Every level completes its own five and blocks yours.
+
+| Level | Strategy | Result vs. next level (1000 AI-vs-AI games) |
+| --- | --- | --- |
+| Tập sự (Beginner) | Random pick among its 3 best-looking cells | loses 943 of 1000 to Normal |
+| Bình thường (Normal) | Hottest cell of the attack/defense heat maps | loses 674 of 1000 to Expert |
+| Cao thủ (Expert) | Normal + plays/blocks open fours and forks first | — |
+
 ## Code structure
 
 All sources are in `src/mbvn/tvc97`, resources in `src/res`.

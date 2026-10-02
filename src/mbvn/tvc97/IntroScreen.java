@@ -34,10 +34,11 @@ public class IntroScreen implements Screen {
         g.drawImage(logo, game.width / 2, game.height / 2, Graphics.HCENTER | Graphics.VCENTER);
     }
 
-    public void update() {
+    public boolean update() {
         if (System.currentTimeMillis() - startTime > DISPLAY_MILLIS) {
             game.showScreen(Game.MENU);
         }
+        return false;
     }
 
     public void keyPressed(int key) {

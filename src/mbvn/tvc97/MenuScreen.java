@@ -92,8 +92,10 @@ public class MenuScreen implements Screen {
                 rightIconLeft, rowMiddle, Graphics.LEFT | Graphics.VCENTER);
     }
 
-    public void update() {
+    public boolean update() {
+        int previous = slideOffset;
         slideOffset = slideOffset * 6 / 10;
+        return slideOffset != previous;
     }
 
     public void keyPressed(int key) {

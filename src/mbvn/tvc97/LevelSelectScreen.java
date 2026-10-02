@@ -95,7 +95,8 @@ public class LevelSelectScreen implements Screen {
         return row == focusedRow ? "< " + value + " >" : value;
     }
 
-    public void update() {
+    public boolean update() {
+        return false;
     }
 
     public void keyPressed(int key) {

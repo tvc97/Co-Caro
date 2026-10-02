@@ -73,7 +73,7 @@ public class InfoScreen implements Screen {
         for (int i = 0; i < lineCount; i++) {
             g.drawString((String) lines.elementAt(i), 1, lineTop(i), Graphics.TOP | Graphics.LEFT);
         }
-        String cursor = blinkTick >= BLINK_VISIBLE_FROM ? "_" : "";
+        String cursor = isCursorVisible() ? "_" : "";
         g.drawString(typedLine + cursor, 1, lineTop(lineCount), Graphics.TOP | Graphics.LEFT);
 
         g.setColor(FOOTER_COLOR);
@@ -88,11 +88,13 @@ public class InfoScreen implements Screen {
     }
 
     /** Types one more character, ending the line at a newline or the screen edge. */
-    public void update() {
+    public boolean update() {
+        boolean cursorWasVisible = isCursorVisible();
         typedCount++;
         blinkTick = (blinkTick + 1) % BLINK_PERIOD;
+        boolean changed = cursorWasVisible != isCursorVisible();
         if (typedCount >= remaining.length()) {
-            return;
+            return changed;
         }
         typedLine = remaining.substring(0, typedCount);
         char next = remaining.charAt(typedCount);
@@ -107,6 +109,11 @@ public class InfoScreen implements Screen {
                 finishLine(typedLine.substring(0, lastSpace), lastSpace, typedCount - lastSpace);
             }
         }
+        return true;
+    }
+
+    private boolean isCursorVisible() {
+        return blinkTick >= BLINK_VISIBLE_FROM;
     }
 
     /**

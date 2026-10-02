@@ -13,8 +13,12 @@ interface Screen {
     /** Paints the screen. Called once per frame after {@link #update()}. */
     void draw(Graphics g);
 
-    /** Advances animations by one frame (about 25 ms). */
-    void update();
+    /**
+     * Advances animations by one frame (about 25 ms).
+     *
+     * @return true if the screen looks different and must be redrawn
+     */
+    boolean update();
 
     /** Handles a key press while this screen is shown. */
     void keyPressed(int key);

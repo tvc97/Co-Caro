@@ -10,8 +10,10 @@ import javax.microedition.lcdui.game.GameCanvas;
  *
  * <p>Exactly one {@link Screen} is shown at a time; screens switch with
  * {@link #showScreen(int)}. Each frame (about 25 ms) the current screen is
- * updated, then drawn. The star key toggles a decorative falling-pieces
- * effect drawn on top of every screen.
+ * updated, and redrawn only if something changed: an animation step, a key
+ * press, a screen switch, or the canvas becoming visible again. Static
+ * screens therefore cost almost no CPU or battery. The star key toggles a
+ * decorative falling-pieces effect drawn on top of every screen.
  *
  * @author Tvc97
  * @forum  http://mbvn.tk
@@ -47,6 +49,8 @@ public class Game extends GameCanvas implements Runnable {
     private final LeafDrop leafDrop;
     private boolean showLeaves;
     private long lastFrameTime;
+    /** Set from the UI thread when the next frame must be drawn. */
+    private volatile boolean redrawRequested = true;
 
     public Game() {
         super(false);
@@ -80,28 +84,40 @@ public class Game extends GameCanvas implements Runnable {
     /** Switches to the screen with the given id ({@link #MENU}, ...). */
     void showScreen(int screenId) {
         currentScreen = screenId;
-    }
-
-    /** Draws and shows a frame immediately, outside the normal frame loop. */
-    void repaintNow() {
-        draw(graphics);
-        flushGraphics();
+        redrawRequested = true;
     }
 
     public void run() {
         while (true) {
-            update();
-            draw(graphics);
-            flushGraphics();
+            if (update()) {
+                draw(graphics);
+                flushGraphics();
+            }
             waitForNextFrame();
         }
     }
 
-    private void update() {
+    /**
+     * Advances one frame.
+     *
+     * @return true if the frame must be redrawn
+     */
+    private boolean update() {
+        boolean changed = false;
         if (showLeaves) {
             leafDrop.update();
+            changed = true;
         }
-        screens[currentScreen].update();
+        if (screens[currentScreen].update()) {
+            changed = true;
+        }
+        // Clear the request before drawing so a key pressed during the draw
+        // still triggers the next frame.
+        if (redrawRequested) {
+            redrawRequested = false;
+            changed = true;
+        }
+        return changed;
     }
 
     private void draw(Graphics g) {
@@ -118,6 +134,12 @@ public class Game extends GameCanvas implements Runnable {
         if (key == Canvas.KEY_STAR) {
             showLeaves = !showLeaves;
         }
+        redrawRequested = true;
+    }
+
+    /** The screen may have been overwritten while hidden (a call, a dialog). */
+    protected void showNotify() {
+        redrawRequested = true;
     }
 
     /**

@@ -77,7 +77,8 @@ public class AchievementScreen implements Screen {
         g.drawImage(game.backIcon, width - 2, height - 2, Graphics.BOTTOM | Graphics.RIGHT);
     }
 
-    public void update() {
+    public boolean update() {
+        return false;
     }
 
     public void keyPressed(int key) {

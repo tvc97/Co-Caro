@@ -13,7 +13,8 @@ import javax.microedition.lcdui.game.Sprite;
  *
  * <p>Keys: arrows or 2/4/6/8 move the cursor (1/3/7/9 diagonally), fire or 5
  * places a stone, the left soft key undoes the last turn, the right soft key
- * returns to the menu. After each human move the computer answers at once.
+ * returns to the menu. After each human move the computer answers after a
+ * short pause; keys other than "back" are ignored while it is thinking.
  *
  * <p>The view keeps the cursor centered, clamped to the board edges. When the
  * cursor jumps, the view eases toward its new position over a few frames.
@@ -65,6 +66,8 @@ public class BoardScreen implements Screen {
     private boolean gameOver;
     private boolean humanWon;
     private boolean humansTurn;
+    /** When the human's last stone was placed; the computer replies after a pause. */
+    private long humanMoveTime;
 
     public BoardScreen(Game game) {
         this.game = game;
@@ -128,14 +131,20 @@ public class BoardScreen implements Screen {
         g.setColor(CURSOR_COLORS[pieceStyle]);
         g.fillRect(left + cursorX * cellSize, top + cursorY * cellSize, cellSize, cellSize);
 
+        // Only the part of the board inside the screen is drawn.
+        int firstColumn = firstVisibleCell(left);
+        int lastColumn = lastVisibleCell(left, width);
+        int firstRow = firstVisibleCell(top);
+        int lastRow = lastVisibleCell(top, height);
+
         g.setColor(GRID_COLOR);
-        for (int i = 0; i <= CaroEngine.SIZE; i++) {
+        for (int i = firstRow; i <= lastRow + 1; i++) {
             g.drawLine(left, top + i * cellSize, left + boardPixels, top + i * cellSize);
         }
-        for (int i = 0; i <= CaroEngine.SIZE; i++) {
+        for (int i = firstColumn; i <= lastColumn + 1; i++) {
             g.drawLine(left + i * cellSize, top, left + i * cellSize, top + boardPixels);
         }
-        drawStones(g, left, top);
+        drawStones(g, left, top, firstColumn, lastColumn, firstRow, lastRow);
 
         g.drawImage(humansTurn ? humanTurnIcon : computerTurnIcon, 2, 2, Graphics.TOP | Graphics.LEFT);
         if (gameOver) {
@@ -169,10 +178,21 @@ public class BoardScreen implements Screen {
         }
     }
 
-    private void drawStones(Graphics g, int left, int top) {
+    /** First cell index (column or row) at least partly on screen, given the board edge position. */
+    private int firstVisibleCell(int boardEdge) {
+        return Math.max(0, -boardEdge / cellSize);
+    }
+
+    /** Last cell index (column or row) at least partly on screen. */
+    private int lastVisibleCell(int boardEdge, int screenSize) {
+        return Math.min(LAST_CELL, (screenSize - boardEdge) / cellSize);
+    }
+
+    private void drawStones(Graphics g, int left, int top,
+            int firstColumn, int lastColumn, int firstRow, int lastRow) {
         int[][] cells = engine.cells;
-        for (int x = 0; x < CaroEngine.SIZE; x++) {
-            for (int y = 0; y < CaroEngine.SIZE; y++) {
+        for (int x = firstColumn; x <= lastColumn; x++) {
+            for (int y = firstRow; y <= lastRow; y++) {
                 if (cells[x][y] != CaroEngine.EMPTY) {
                     int sprite = cells[x][y] == CaroEngine.HUMAN ? pieceStyle : 1 - pieceStyle;
                     g.drawRegion(game.pieces, sprite * cellSize, 0, cellSize, cellSize, Sprite.TRANS_NONE,
@@ -206,9 +226,18 @@ public class BoardScreen implements Screen {
                 Graphics.HCENTER | Graphics.BASELINE);
     }
 
-    public void update() {
+    public boolean update() {
+        int previousX = scrollX;
+        int previousY = scrollY;
         scrollX = scrollX * SCROLL_DAMPING_PERCENT / 100;
         scrollY = scrollY * SCROLL_DAMPING_PERCENT / 100;
+        boolean changed = scrollX != previousX || scrollY != previousY;
+
+        if (!humansTurn && System.currentTimeMillis() - humanMoveTime >= COMPUTER_DELAY_MILLIS) {
+            playComputerMove();
+            changed = true;
+        }
+        return changed;
     }
 
     // ------------------------------------------------------------------
@@ -216,6 +245,12 @@ public class BoardScreen implements Screen {
     // ------------------------------------------------------------------
 
     public void keyPressed(int key) {
+        if (Keys.isBack(key)) {
+            game.showScreen(Game.MENU);
+        }
+        if (!humansTurn) {
+            return;
+        }
         if (!gameOver) {
             moveCursor(key);
         }
@@ -224,9 +259,6 @@ public class BoardScreen implements Screen {
         }
         if (key == Keys.SOFT_LEFT) {
             undo();
-        }
-        if (Keys.isBack(key)) {
-            game.showScreen(Game.MENU);
         }
     }
 
@@ -264,11 +296,15 @@ public class BoardScreen implements Screen {
         }
     }
 
-    /** Places the human's stone at the cursor, then lets the computer answer. */
+    /**
+     * Places the human's stone at the cursor. Unless that wins, the computer
+     * replies from {@link #update()} once the pause has passed, so the
+     * "computer's turn" icon is drawn meanwhile.
+     */
     private void playHumanMove() {
         int x = cursorX;
         int y = cursorY;
-        if (engine.cells[x][y] != CaroEngine.EMPTY) {
+        if (gameOver || engine.cells[x][y] != CaroEngine.EMPTY) {
             return;
         }
         engine.cells[x][y] = CaroEngine.HUMAN;
@@ -277,20 +313,19 @@ public class BoardScreen implements Screen {
             moves.addElement(new Move(x, y, Move.NO_REPLY, Move.NO_REPLY));
             return;
         }
-
-        // Show the computer's turn indicator before it starts thinking.
+        humanMoveTime = System.currentTimeMillis();
         humansTurn = false;
-        game.repaintNow();
-        try {
-            Thread.sleep(COMPUTER_DELAY_MILLIS);
-        } catch (Exception e) {
-        }
+    }
 
+    /** Runs on the frame-loop thread, so the board never changes mid-draw. */
+    private void playComputerMove() {
         engine.findBestMove();
         int replyX = engine.bestX;
         int replyY = engine.bestY;
         engine.cells[replyX][replyY] = CaroEngine.COMPUTER;
-        moves.addElement(new Move(x, y, replyX, replyY));
+        // Keys are ignored while the computer thinks, so the cursor is
+        // still on the human's stone.
+        moves.addElement(new Move(cursorX, cursorY, replyX, replyY));
         jumpCursorTo(replyX, replyY);
         if (engine.checkWin()) {
             endGame(false);
