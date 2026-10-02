@@ -14,10 +14,15 @@ import javax.microedition.lcdui.game.Sprite;
  * <p>Keys: arrows or 2/4/6/8 move the cursor (1/3/7/9 diagonally), fire or 5
  * places a stone, the left soft key undoes the last turn, the right soft key
  * returns to the menu. After each human move the computer answers after a
- * short pause; keys other than "back" are ignored while it is thinking.
+ * short pause; input other than "back" is ignored while it is thinking.
  *
- * <p>The view keeps the cursor centered, clamped to the board edges. When the
- * cursor jumps, the view eases toward its new position over a few frames.
+ * <p>Touch: tap a cell to select it, tap the selected cell again to place a
+ * stone, drag to pan the board, tap the corner icons to undo or go back.
+ *
+ * <p>The view is centered on a focus point. Moving the cursor (by key, or by
+ * the computer's reply) moves the focus to it and the view eases there over
+ * a few frames; dragging moves the focus directly. The focus is kept far
+ * enough from the edges that no space beyond the board is shown.
  *
  * @author Tvc97
  * @forum  http://mbvn.tk
@@ -47,8 +52,6 @@ public class BoardScreen implements Screen {
 
     private final int cellSize;
     private final int boardPixels;
-    /** Most negative allowed board origin (board's right/bottom edge on screen edge). */
-    private final int minOriginX, minOriginY;
 
     private final Image computerTurnIcon, humanTurnIcon, undoIcon, dimTile;
     private final Font resultFont;
@@ -59,8 +62,8 @@ public class BoardScreen implements Screen {
     /** 0: human plays X, 1: human plays O. Index into the sprite sheet. */
     private int pieceStyle;
     private int cursorX, cursorY;
-    /** Screen position of the board's top-left corner, from the last draw. */
-    private int originX, originY;
+    /** Board pixel shown at the center of the screen. */
+    private int focusX, focusY;
     /** Remaining scroll animation in pixels; decays toward 0 each frame. */
     private int scrollX, scrollY;
     private boolean gameOver;
@@ -81,8 +84,6 @@ public class BoardScreen implements Screen {
 
         cellSize = game.pieces.getWidth() / 2;
         boardPixels = cellSize * CaroEngine.SIZE;
-        minOriginX = -(boardPixels - game.width);
-        minOriginY = -(boardPixels - game.height);
         reset();
     }
 
@@ -105,8 +106,7 @@ public class BoardScreen implements Screen {
     private void reset() {
         engine.reset();
         moves.setSize(0);
-        cursorX = CENTER;
-        cursorY = CENTER;
+        moveCursorTo(CENTER, CENTER);
         scrollX = 0;
         scrollY = 0;
         humanWon = false;
@@ -123,10 +123,9 @@ public class BoardScreen implements Screen {
         int width = game.width;
         int height = game.height;
         g.setClip(0, 0, width, height);
-        updateOrigin();
-
-        int left = originX + scrollX;
-        int top = originY + scrollY;
+        // Screen position of the board's top-left corner.
+        int left = width / 2 - focusX + scrollX;
+        int top = height / 2 - focusY + scrollY;
 
         g.setColor(CURSOR_COLORS[pieceStyle]);
         g.fillRect(left + cursorX * cellSize, top + cursorY * cellSize, cellSize, cellSize);
@@ -152,30 +151,6 @@ public class BoardScreen implements Screen {
         }
         g.drawImage(game.backIcon, width - 2, height - 2, Graphics.BOTTOM | Graphics.RIGHT);
         g.drawImage(undoIcon, 2, height - 2, Graphics.BOTTOM | Graphics.LEFT);
-    }
-
-    /**
-     * Places the board so the cursor is centered on screen, without showing
-     * space beyond the board edges. Reaching the top/left edge also cancels
-     * the scroll animation on that axis.
-     */
-    private void updateOrigin() {
-        originX = game.width / 2 - cursorX * cellSize - cellSize / 2;
-        originY = game.height / 2 - cursorY * cellSize - cellSize / 2;
-        if (originX > 0) {
-            originX = 0;
-            scrollX = 0;
-        }
-        if (originY > 0) {
-            scrollY = 0;
-            originY = 0;
-        }
-        if (originX < minOriginX) {
-            originX = minOriginX;
-        }
-        if (originY < minOriginY) {
-            originY = minOriginY;
-        }
     }
 
     /** First cell index (column or row) at least partly on screen, given the board edge position. */
@@ -264,36 +239,62 @@ public class BoardScreen implements Screen {
 
     /** Moves the cursor one cell; the corner number keys move diagonally. */
     private void moveCursor(int key) {
+        int x = cursorX;
+        int y = cursorY;
         if (Keys.isUp(key) || key == Canvas.KEY_NUM1 || key == Canvas.KEY_NUM3) {
-            cursorY = Math.max(0, cursorY - 1);
-            startScroll(0, -cellSize);
+            y = Math.max(0, y - 1);
         }
         if (Keys.isDown(key) || key == Canvas.KEY_NUM7 || key == Canvas.KEY_NUM9) {
-            cursorY = Math.min(LAST_CELL, cursorY + 1);
-            startScroll(0, cellSize);
+            y = Math.min(LAST_CELL, y + 1);
         }
         if (Keys.isLeft(key) || key == Canvas.KEY_NUM1 || key == Canvas.KEY_NUM7) {
-            cursorX = Math.max(0, cursorX - 1);
-            startScroll(-cellSize, 0);
+            x = Math.max(0, x - 1);
         }
         if (Keys.isRight(key) || key == Canvas.KEY_NUM3 || key == Canvas.KEY_NUM9) {
-            cursorX = Math.min(LAST_CELL, cursorX + 1);
-            startScroll(cellSize, 0);
+            x = Math.min(LAST_CELL, x + 1);
+        }
+        if (x != cursorX || y != cursorY) {
+            moveCursorTo(x, y);
         }
     }
 
     /**
-     * Adds a scroll animation for a one-cell cursor step, but only while the
-     * board is not pinned to an edge on that axis (otherwise the view stays
-     * put and only the cursor moves).
+     * Selects the tapped cell, or places a stone if it was already selected.
+     * The view does not move, so the cell stays under the finger.
      */
-    private void startScroll(int deltaX, int deltaY) {
-        if (deltaX == 0 && originY > minOriginY && originY < 0) {
-            scrollY += deltaY;
+    public void tapped(int x, int y) {
+        if (game.touchesBackIcon(x, y)) {
+            game.showScreen(Game.MENU);
+            return;
         }
-        if (deltaY == 0 && originX > minOriginX && originX < 0) {
-            scrollX += deltaX;
+        if (!humansTurn) {
+            return;
         }
+        if (game.touchesBottomLeft(undoIcon, x, y)) {
+            undo();
+            return;
+        }
+        int boardX = x - (game.width / 2 - focusX + scrollX);
+        int boardY = y - (game.height / 2 - focusY + scrollY);
+        if (gameOver || boardX < 0 || boardY < 0 || boardX >= boardPixels || boardY >= boardPixels) {
+            return;
+        }
+        int cellX = boardX / cellSize;
+        int cellY = boardY / cellSize;
+        if (cellX == cursorX && cellY == cursorY) {
+            playHumanMove();
+        } else {
+            cursorX = cellX;
+            cursorY = cellY;
+        }
+    }
+
+    /** Pans the board with the finger. */
+    public void dragged(int dx, int dy) {
+        scrollX = 0;
+        scrollY = 0;
+        focusX = clampFocus(focusX - dx, game.width);
+        focusY = clampFocus(focusY - dy, game.height);
     }
 
     /**
@@ -326,7 +327,7 @@ public class BoardScreen implements Screen {
         // Keys are ignored while the computer thinks, so the cursor is
         // still on the human's stone.
         moves.addElement(new Move(cursorX, cursorY, replyX, replyY));
-        jumpCursorTo(replyX, replyY);
+        moveCursorTo(replyX, replyY);
         if (engine.checkWin()) {
             endGame(false);
         }
@@ -355,15 +356,30 @@ public class BoardScreen implements Screen {
 
         if (count > 1) {
             Move previous = (Move) moves.elementAt(count - 2);
-            jumpCursorTo(previous.computerX, previous.computerY);
+            moveCursorTo(previous.computerX, previous.computerY);
         }
     }
 
-    /** Moves the cursor to a cell, animating the view from the old position. */
-    private void jumpCursorTo(int x, int y) {
-        scrollX = (x - cursorX) * cellSize;
-        scrollY = (y - cursorY) * cellSize;
+    /**
+     * Moves the cursor to a cell and focuses the view on it. The scroll
+     * offset absorbs the jump, so the picture does not move this frame and
+     * then eases to the new position.
+     */
+    private void moveCursorTo(int x, int y) {
         cursorX = x;
         cursorY = y;
+        int oldFocusX = focusX;
+        int oldFocusY = focusY;
+        focusX = clampFocus(x * cellSize + cellSize / 2, game.width);
+        focusY = clampFocus(y * cellSize + cellSize / 2, game.height);
+        scrollX += focusX - oldFocusX;
+        scrollY += focusY - oldFocusY;
+    }
+
+    /** Limits a focus coordinate so the view never shows space beyond the board. */
+    private int clampFocus(int focus, int screenSize) {
+        int min = screenSize / 2;
+        int max = screenSize / 2 + boardPixels - screenSize;
+        return Math.max(min, Math.min(max, focus));
     }
 }

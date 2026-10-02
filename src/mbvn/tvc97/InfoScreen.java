@@ -133,4 +133,14 @@ public class InfoScreen implements Screen {
             game.showScreen(Game.MENU);
         }
     }
+
+    /** The whole footer bar acts as the "back" button. */
+    public void tapped(int x, int y) {
+        if (y >= game.height - barHeight) {
+            game.showScreen(Game.MENU);
+        }
+    }
+
+    public void dragged(int dx, int dy) {
+    }
 }

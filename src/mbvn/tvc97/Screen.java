@@ -22,4 +22,15 @@ interface Screen {
 
     /** Handles a key press while this screen is shown. */
     void keyPressed(int key);
+
+    /** Handles a touch that was released without moving (screen coordinates). */
+    void tapped(int x, int y);
+
+    /**
+     * Handles a touch moving across the screen.
+     *
+     * @param dx horizontal movement in pixels since the last call
+     * @param dy vertical movement in pixels since the last call
+     */
+    void dragged(int dx, int dy);
 }

@@ -19,6 +19,18 @@ Five-in-a-row against the computer on a 30x30 board, for Java ME phones.
 | Right soft key | Back to main menu |
 | * | Toggle the falling-pieces effect |
 
+On touch screens:
+
+| Touch | Action |
+| --- | --- |
+| Tap a menu item | Open it |
+| Tap the hint line at the top of the menu | Toggle the falling-pieces effect |
+| Tap left / right half of a setup row | Previous / next value |
+| Tap X or O on the setup screen | Choose your stone |
+| Tap a board cell, then tap it again | Select it, then place a stone |
+| Drag on the board | Pan the view |
+| Tap the bottom-left / bottom-right icon | Undo or start / back to menu |
+
 ## Difficulty levels
 
 Every level completes its own five and blocks yours.

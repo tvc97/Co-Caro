@@ -43,4 +43,10 @@ public class IntroScreen implements Screen {
 
     public void keyPressed(int key) {
     }
+
+    public void tapped(int x, int y) {
+    }
+
+    public void dragged(int dx, int dy) {
+    }
 }

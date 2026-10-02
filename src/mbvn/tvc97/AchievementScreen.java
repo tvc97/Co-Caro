@@ -86,4 +86,13 @@ public class AchievementScreen implements Screen {
             game.showScreen(Game.MENU);
         }
     }
+
+    public void tapped(int x, int y) {
+        if (game.touchesBackIcon(x, y)) {
+            game.showScreen(Game.MENU);
+        }
+    }
+
+    public void dragged(int dx, int dy) {
+    }
 }

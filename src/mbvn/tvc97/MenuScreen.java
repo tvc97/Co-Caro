@@ -7,6 +7,7 @@ import javax.microedition.lcdui.Image;
 /**
  * Main menu. The selected item is highlighted and framed by an X and an O
  * that slide in from the screen edges whenever the selection changes.
+ * Tapping an item opens it; tapping the hint line toggles the effect.
  *
  * @author Tvc97
  * @forum  http://mbvn.tk
@@ -108,6 +109,21 @@ public class MenuScreen implements Screen {
         if (Keys.isSelect(key)) {
             activate(selected);
         }
+    }
+
+    public void tapped(int x, int y) {
+        if (y < itemFont.getHeight()) {
+            game.toggleLeaves();
+            return;
+        }
+        if (y >= top && y < top + ITEMS.length * itemHeight) {
+            int item = (y - top) / itemHeight;
+            select(item);
+            activate(item);
+        }
+    }
+
+    public void dragged(int dx, int dy) {
     }
 
     /** Selects an item and starts the icons sliding in from the screen edges. */

@@ -15,6 +15,10 @@ import javax.microedition.lcdui.game.GameCanvas;
  * screens therefore cost almost no CPU or battery. The star key toggles a
  * decorative falling-pieces effect drawn on top of every screen.
  *
+ * <p>On touch screens a touch that stays within {@value #TAP_SLOP} pixels of
+ * where it started is a tap ({@link Screen#tapped}); anything further is a
+ * drag ({@link Screen#dragged}).
+ *
  * @author Tvc97
  * @forum  http://mbvn.tk
  */
@@ -31,6 +35,10 @@ public class Game extends GameCanvas implements Runnable {
     private static final int FRAME_MILLIS = 25;
     private static final int LARGE_SCREEN_MIN_WIDTH = 240;
     private static final int BACKGROUND_COLOR = 0xffffff;
+    /** How far a touch may move and still count as a tap. */
+    private static final int TAP_SLOP = 8;
+    /** Extra margin around corner icons that still counts as touching them. */
+    private static final int ICON_TOUCH_MARGIN = 8;
 
     final int width, height;
     final AchievementStore achievements;
@@ -49,6 +57,10 @@ public class Game extends GameCanvas implements Runnable {
     private final LeafDrop leafDrop;
     private boolean showLeaves;
     private long lastFrameTime;
+    /** Last touch position, and whether the current touch became a drag. */
+    private int touchX, touchY;
+    private boolean dragging;
+
     /** Set from the UI thread when the next frame must be drawn. */
     private volatile boolean redrawRequested = true;
 
@@ -79,6 +91,27 @@ public class Game extends GameCanvas implements Runnable {
     /** True on screens wide enough for the large artwork. */
     boolean isLargeScreen() {
         return width >= LARGE_SCREEN_MIN_WIDTH;
+    }
+
+    /** Turns the falling-pieces effect on or off. */
+    void toggleLeaves() {
+        showLeaves = !showLeaves;
+        redrawRequested = true;
+    }
+
+    /**
+     * True if (x, y) touches an icon drawn in the bottom-left corner
+     * (the left soft-key action: undo, play).
+     */
+    boolean touchesBottomLeft(Image icon, int x, int y) {
+        return x <= 2 + icon.getWidth() + ICON_TOUCH_MARGIN
+                && y >= height - 2 - icon.getHeight() - ICON_TOUCH_MARGIN;
+    }
+
+    /** True if (x, y) touches the "back" icon in the bottom-right corner. */
+    boolean touchesBackIcon(int x, int y) {
+        return x >= width - 2 - backIcon.getWidth() - ICON_TOUCH_MARGIN
+                && y >= height - 2 - backIcon.getHeight() - ICON_TOUCH_MARGIN;
     }
 
     /** Switches to the screen with the given id ({@link #MENU}, ...). */
@@ -132,9 +165,33 @@ public class Game extends GameCanvas implements Runnable {
     protected void keyPressed(int key) {
         screens[currentScreen].keyPressed(key);
         if (key == Canvas.KEY_STAR) {
-            showLeaves = !showLeaves;
+            toggleLeaves();
         }
         redrawRequested = true;
+    }
+
+    protected void pointerPressed(int x, int y) {
+        touchX = x;
+        touchY = y;
+        dragging = false;
+    }
+
+    protected void pointerDragged(int x, int y) {
+        if (!dragging && Math.abs(x - touchX) <= TAP_SLOP && Math.abs(y - touchY) <= TAP_SLOP) {
+            return;
+        }
+        dragging = true;
+        screens[currentScreen].dragged(x - touchX, y - touchY);
+        touchX = x;
+        touchY = y;
+        redrawRequested = true;
+    }
+
+    protected void pointerReleased(int x, int y) {
+        if (!dragging) {
+            screens[currentScreen].tapped(x, y);
+            redrawRequested = true;
+        }
     }
 
     /** The screen may have been overwritten while hidden (a call, a dialog). */

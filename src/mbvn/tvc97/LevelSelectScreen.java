@@ -9,6 +9,10 @@ import javax.microedition.lcdui.Image;
  * moves first. Up/down moves between rows, left/right changes the focused
  * row's value, select or the left soft key starts the game.
  *
+ * <p>Touch: tap the left or right half of the level or first-player row to
+ * step its value back or forward, tap X or O to pick a stone, tap the play
+ * icon to start.
+ *
  * @author Tvc97
  * @forum  http://mbvn.tk
  */
@@ -113,13 +117,43 @@ public class LevelSelectScreen implements Screen {
             changeChoice(1);
         }
         if (Keys.isSelect(key) || key == Keys.SOFT_LEFT) {
-            game.board.startNewGame(choices[ROW_LEVEL], choices[ROW_PIECE],
-                    choices[ROW_FIRST_PLAYER] == FIRST_PLAYER_COMPUTER);
-            game.showScreen(Game.BOARD);
+            startGame();
         }
         if (Keys.isBack(key)) {
             game.showScreen(Game.MENU);
         }
+    }
+
+    public void tapped(int x, int y) {
+        int centerX = game.width / 2;
+        int iconSize = game.pieces.getHeight();
+        int piecesTop = top + rowHeight * 3;
+        int firstPlayerTop = piecesTop + iconSize + 4;
+
+        if (game.touchesBottomLeft(playIcon, x, y)) {
+            startGame();
+        } else if (game.touchesBackIcon(x, y)) {
+            game.showScreen(Game.MENU);
+        } else if (y >= top && y < top + rowHeight * 2) {
+            focusedRow = ROW_LEVEL;
+            changeChoice(x < centerX ? -1 : 1);
+        } else if (y >= top + rowHeight * 2 && y < piecesTop + iconSize
+                && x >= centerX - iconSize && x < centerX + iconSize) {
+            focusedRow = ROW_PIECE;
+            choices[ROW_PIECE] = x < centerX ? 0 : 1;
+        } else if (y >= firstPlayerTop && y < firstPlayerTop + rowHeight * 2 + 4) {
+            focusedRow = ROW_FIRST_PLAYER;
+            changeChoice(x < centerX ? -1 : 1);
+        }
+    }
+
+    public void dragged(int dx, int dy) {
+    }
+
+    private void startGame() {
+        game.board.startNewGame(choices[ROW_LEVEL], choices[ROW_PIECE],
+                choices[ROW_FIRST_PLAYER] == FIRST_PLAYER_COMPUTER);
+        game.showScreen(Game.BOARD);
     }
 
     private void changeChoice(int delta) {
