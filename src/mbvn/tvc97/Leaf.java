@@ -1,22 +1,27 @@
 package mbvn.tvc97;
 
 /**
+ * One falling sprite of the {@link LeafDrop} effect.
  *
  * @author Tvc97
  */
-public class Leaf {
+class Leaf {
 
-    int x, y, vx, vy, c, f;
-    boolean i;
+    /** Position in pixels. */
+    int x, y;
+    /** Velocity in pixels per frame. */
+    int vx, vy;
+    /** Current animation frame of the sprite sheet. */
+    int frame;
+    /** Game frames shown since the animation frame last changed. */
+    int frameTicks;
 
-    public Leaf(int x, int y, int vx, int vy, int f) {
+    Leaf(int x, int y, int vx, int vy, int frame) {
         this.x = x;
         this.y = y;
         this.vx = vx;
         this.vy = vy;
-        this.f = f;
-        c = 0;
-        f = 0;
-        i = true;
+        this.frame = frame;
+        frameTicks = 0;
     }
 }

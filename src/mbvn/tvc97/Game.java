@@ -1,170 +1,140 @@
 package mbvn.tvc97;
 
-import javax.microedition.lcdui.game.*;
-import javax.microedition.lcdui.*;
-import java.util.*;
+import javax.microedition.lcdui.Canvas;
+import javax.microedition.lcdui.Graphics;
+import javax.microedition.lcdui.Image;
+import javax.microedition.lcdui.game.GameCanvas;
 
 /**
+ * Full-screen canvas that owns all screens and runs the frame loop.
+ *
+ * <p>Exactly one {@link Screen} is shown at a time; screens switch with
+ * {@link #showScreen(int)}. Each frame (about 25 ms) the current screen is
+ * updated, then drawn. The star key toggles a decorative falling-pieces
+ * effect drawn on top of every screen.
+ *
  * @author Tvc97
  * @forum  http://mbvn.tk
  */
 public class Game extends GameCanvas implements Runnable {
 
-    int w, h;
-    boolean showLeaf;
-    Graphics g;
-    Board board;
-    Intro intro;
-    Menu menu;
-    Info info;
-    LevelSelect lvs;
-    LeafDrop ld;
-    Random rd;
-    RMS rms;
-    Achievement ach;
-    long lastDraw;
+    /** Screen ids for {@link #showScreen(int)}. */
+    static final int INTRO = 0;
+    static final int MENU = 1;
+    static final int LEVEL_SELECT = 2;
+    static final int BOARD = 3;
+    static final int INFO = 4;
+    static final int ACHIEVEMENTS = 5;
+
+    private static final int FRAME_MILLIS = 25;
+    private static final int LARGE_SCREEN_MIN_WIDTH = 240;
+    private static final int BACKGROUND_COLOR = 0xffffff;
+
+    final int width, height;
+    final AchievementStore achievements;
+
+    /** Both stone sprites side by side: X on the left, O on the right. */
+    final Image pieces;
+    /** "Back" soft-key label, drawn bottom-right on most screens. */
+    final Image backIcon;
+
+    final BoardScreen board;
+
+    private final Graphics graphics;
+    private final Screen[] screens = new Screen[6];
+    private int currentScreen = INTRO;
+
+    private final LeafDrop leafDrop;
+    private boolean showLeaves;
+    private long lastFrameTime;
 
     public Game() {
         super(false);
         setFullScreenMode(true);
-        w = getWidth();
-        h = getHeight();
-        g = getGraphics();
-        showLeaf = false;
-        rd = new Random();
-        rms = new RMS();
-        board = new Board(this);
-        intro = new Intro(this);
-        menu = new Menu(this);
-        info = new Info(this);
-        ld = new LeafDrop(this);
-        lvs = new LevelSelect(this);
-        ach = new Achievement(this);
-        lastDraw = 0;
-        rms.load();
+        width = getWidth();
+        height = getHeight();
+        graphics = getGraphics();
+        showLeaves = false;
+        achievements = new AchievementStore();
+
+        pieces = Resources.loadImage(isLargeScreen() ? "xo_big" : "xo_small");
+        backIcon = Resources.loadImage("back");
+
+        board = new BoardScreen(this);
+        screens[BOARD] = board;
+        screens[INTRO] = new IntroScreen(this);
+        screens[MENU] = new MenuScreen(this);
+        screens[INFO] = new InfoScreen(this);
+        leafDrop = new LeafDrop(width, height);
+        screens[LEVEL_SELECT] = new LevelSelectScreen(this);
+        screens[ACHIEVEMENTS] = new AchievementScreen(this);
+        lastFrameTime = 0;
+        achievements.load();
     }
 
-    public void draw(Graphics g) {
-        g.setColor(0xffffff);
-        g.fillRect(0, 0, w, h);
-        if (State.intro()) {
-            intro.draw(g);
-        } else if (State.menu()) {
-            menu.draw(g);
-        } else if (State.board()) {
-            board.draw(g);
-        } else if (State.info()) {
-            info.draw(g);
-        } else if (State.level()) {
-            lvs.draw(g);
-        } else if (State.ach()) {
-            ach.draw(g);
-        }
-        if (showLeaf) {
-            ld.draw(g);
-        }
+    /** True on screens wide enough for the large artwork. */
+    boolean isLargeScreen() {
+        return width >= LARGE_SCREEN_MIN_WIDTH;
     }
 
-    public void update() {
-        if (showLeaf) {
-            ld.update();
-        }
-        if (State.intro()) {
-            intro.update();
-        } else if (State.menu()) {
-            menu.update();
-        } else if (State.board()) {
-            board.update();
-        } else if (State.info()) {
-            info.update();
-        }
+    /** Switches to the screen with the given id ({@link #MENU}, ...). */
+    void showScreen(int screenId) {
+        currentScreen = screenId;
     }
 
-    protected void keyPressed(int k) {
-        if (State.board()) {
-            board.key(k);
-        } else if (State.menu()) {
-            menu.key(k);
-        } else if (State.info()) {
-            info.key(k);
-        } else if (State.level()) {
-            lvs.key(k);
-        } else if (State.ach()) {
-            ach.key(k);
-        }
-        if (k == 42) {
-            showLeaf = !showLeaf;
-        }
+    /** Draws and shows a frame immediately, outside the normal frame loop. */
+    void repaintNow() {
+        draw(graphics);
+        flushGraphics();
     }
 
     public void run() {
         while (true) {
             update();
-            draw(g);
+            draw(graphics);
             flushGraphics();
-            sleep();
+            waitForNextFrame();
         }
     }
 
-    void sleep() {
-        long delay = 0;
-        long ft = now() - lastDraw;
-        if (lastDraw != 0) {
-            if (ft > 25) {
-                delay = Math.max(0, 25 - (ft - 25));
-            } else {
-                delay = 25;
-            }
-        } else {
-            delay = 25;
+    private void update() {
+        if (showLeaves) {
+            leafDrop.update();
         }
-        lastDraw = now();
+        screens[currentScreen].update();
+    }
+
+    private void draw(Graphics g) {
+        g.setColor(BACKGROUND_COLOR);
+        g.fillRect(0, 0, width, height);
+        screens[currentScreen].draw(g);
+        if (showLeaves) {
+            leafDrop.draw(g);
+        }
+    }
+
+    protected void keyPressed(int key) {
+        screens[currentScreen].keyPressed(key);
+        if (key == Canvas.KEY_STAR) {
+            showLeaves = !showLeaves;
+        }
+    }
+
+    /**
+     * Sleeps one frame. If the time since the previous call exceeded a frame,
+     * the overrun is taken off this sleep so the frame rate catches up.
+     */
+    private void waitForNextFrame() {
+        long now = System.currentTimeMillis();
+        long elapsed = now - lastFrameTime;
+        long delay = FRAME_MILLIS;
+        if (lastFrameTime != 0 && elapsed > FRAME_MILLIS) {
+            delay = Math.max(0, 2 * FRAME_MILLIS - elapsed);
+        }
+        lastFrameTime = now;
         try {
             Thread.sleep(delay);
         } catch (Exception e) {
         }
-
-    }
-
-    int rand(int start, int limit, boolean abs) {
-        if (limit <= start) {
-            return limit;
-        }
-        int i = start + rd.nextInt() % (limit - start);
-        return abs ? Math.abs(i) : i;
-    }
-
-    int rand(int limit, boolean abs) {
-        return rand(0, limit, abs);
-    }
-
-    int rand(int start, int limit) {
-        return rand(start, limit, true);
-    }
-
-    int rand(int limit) {
-        return rand(0, limit, true);
-    }
-
-    byte[] dec(byte[] inp) {
-        int l = inp.length;
-        for (int i = 0; i < l; i++) {
-            inp[i] = (byte) (((~(inp[i] - 0xBA)) ^ 0xAB) & 0xFF);
-        }
-        return inp;
-    }
-
-    long now() {
-        return System.currentTimeMillis();
-    }
-
-    public Image load(String s) {
-        Image im = null;
-        try {
-            im = Image.createImage("/res/" + s + ".png");
-            Runtime.getRuntime().gc();
-        } catch (Exception e) {
-        }
-        return im;
     }
 }
